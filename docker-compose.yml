@@ -1,0 +1,87 @@
+version: '3.4'
+
+services:
+    db:
+        container_name: mlflow_db
+        image: mysql/mysql-server:5.7.28
+        restart: unless-stopped
+        networks:
+            - backend
+        expose:
+            - "${DB_PORT}"
+        ports:
+            - "${DB_PORT}:${DB_PORT}"
+        environment:
+            - MYSQL_DATABASE=${DB_NAME}
+            - MYSQL_USER=${DB_USER}
+            - MYSQL_PASSWORD=${DB_PW}
+            - MYSQL_ROOT_PASSWORD=${DB_ROOTPW}
+        volumes:
+            - ${DB_PATH}:/var/lib/mysql:Z
+
+    ftp:
+        container_name: mlflow_ftp
+        restart: unless-stopped
+        image: bogem/ftp
+        networks:
+            - backend
+        ports:
+            - "20:20"
+            - "21:21"
+            - "47400-47470:47400-47470"
+        environment:
+            - FTP_USER=${FTP_USER}
+            - FTP_PASS=${FTP_PASS}
+            - PASV_ADDRESS=${MLFLOW_SERVER_IP}
+        volumes:
+            - ${ARTIFACT_PATH}:/home/vsftpd
+        depends_on:
+            - db
+
+    app:
+        container_name: mlflow_server
+        image: mlflow_server
+        restart: unless-stopped
+        build: ./mlflow
+        networks:
+            - frontend
+            - backend
+        ports:
+            - "${MLFLOW_PORT}:${MLFLOW_PORT}"
+        environment:
+            - DB_URI=mysql+pymysql://${DB_USER}:${DB_PW}@db:${DB_PORT}/${DB_NAME}
+        command:
+            - sh    # (sh allows for var substitution of BACKEND and ARTIFACT_PATH)
+            - -c
+            - mlflow server
+                --port ${MLFLOW_PORT}
+                --host 0.0.0.0
+                --backend-store-uri $${DB_URI}
+                --default-artifact-root ftp://${FTP_USER}:${FTP_PASS}@${MLFLOW_SERVER_IP}
+
+        depends_on:
+            - db
+            - ftp
+
+    nginx:
+        container_name: mlflow_nginx
+        image: mlflow_nginx
+        restart: unless-stopped
+        build: ./nginx
+        ports:
+            - "80:80"
+        networks:
+            - frontend
+        depends_on:
+            - app
+        volumes:
+            - ./nginx/.htpasswd:/etc/nginx/.htpasswd
+        environment:
+            - MLFLOW_PORT=${MLFLOW_PORT}
+        # ugly hack to allow parametrization of nginx
+        command: /bin/bash -c "envsubst '$${MLFLOW_PORT}' < /etc/nginx/sites-enabled/mlflow.conf.template > /etc/nginx/sites-enabled/mlflow.conf && nginx -g 'daemon off;'"
+networks:
+    frontend:
+        driver: bridge
+    backend:
+        driver: bridge
