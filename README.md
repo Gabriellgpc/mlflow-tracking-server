@@ -18,7 +18,7 @@ This setup is heavly based on [Toumash's work](https://github.com/Toumash/mlflow
 
 In order to configure `mlflow server instance`, follow these steps:
 
-1. Create the file `.env` and set the following variables (please refer to [Server configuration](https://docs.google.com/document/d/1yQPpjrVhb7_2PgzMvjHISPA8rnItH-gCmlL_IJcqJGE/edit?usp=sharing)):
+1. Create the file `.env` and set the following variables:
  - `DB_USER` - username for internal MLflow tracking database (arbitrary)
  - `DB_PW` - password for internal MLflow tracking database (arbitrary)
  - `DB_ROOTPW` - root password for internal ML Flow tracking database (arbitrary)
